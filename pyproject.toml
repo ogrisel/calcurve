@@ -31,7 +31,6 @@ dev = [
     "jupytext",
     "ipykernel",
     "ruff",
-    "pre-commit",
 ]
 
 [tool.pytest.ini_options]
@@ -39,7 +38,6 @@ addopts = "-v --cov=calcurve --cov-report=term-missing"
 testpaths = ["tests"]
 
 [tool.ruff]
-# Same as Black
 line-length = 88
 indent-width = 4
 
@@ -50,6 +48,12 @@ target-version = "py311"
 # Enable pycodestyle (E), pyflakes (F), and isort (I)
 select = ["E", "F", "I"]
 ignore = ["E203"]  # Ignore whitespace before ':' (black handles this)
+
+[tool.ruff.lint.isort]
+known-first-party = ["calcurve"]
+
+[tool.ruff.lint.per-file-ignores]
+"examples/*.py" = ["E501"]  # Ignore line length in example files
 
 [tool.ruff.format]
 # Use double quotes for strings
