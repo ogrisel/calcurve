@@ -1,0 +1,37 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "calcurve"
+version = "0.1.0"
+authors = [
+    {name = "Cascade"}
+]
+description = "Calibration curves with confidence intervals for scikit-learn classifiers"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy",
+    "scipy",
+    "scikit-learn",
+    "matplotlib",
+    "pandas",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+]
+dev = [
+    "jupyter",
+    "notebook",
+    "seaborn",
+    "jupytext",
+    "ipykernel",
+]
+
+[tool.pytest.ini_options]
+addopts = "-v --cov=calcurve --cov-report=term-missing"
+testpaths = ["tests"]

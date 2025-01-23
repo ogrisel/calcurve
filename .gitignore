@@ -1,0 +1,4 @@
+calcurve.egg-info/
+.vscode
+.coverage
+__pycache__
