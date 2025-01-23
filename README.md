@@ -2,6 +2,13 @@
 
 Compute and visualize calibration curves with confidence intervals for scikit-learn binary classifiers.
 
+DISCLAIMER: this code was generated using Windsurf IDE's Cascade agent with some guidance as an
+experiment to assess the productivity of working with such a tool.
+
+The code is not necessarily correct, the tests are quite shallow, the analysis
+in the notebook is sometimes misled or inconsident with the plots, and I did
+not review them all.
+
 ## Features
 
 - Multiple binning strategies:
@@ -11,7 +18,7 @@ Compute and visualize calibration curves with confidence intervals for scikit-le
 
 - Confidence interval methods:
   - Clopper-Pearson exact intervals
-  - Wilson score intervals
+  - Wilson CC intervals
   - Bootstrap resampling with interpolation
 
 ## Installation
@@ -23,7 +30,7 @@ pip install .
 For development installation with test dependencies:
 
 ```bash
-pip install -e ".[test]"
+pip install -e ".[dev,test]"
 ```
 
 ## Usage
