@@ -21,14 +21,14 @@
 # under different scenarios and settings.
 
 # %%
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import RandomForestClassifier
-from calcurve import CalibrationCurve
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
 
+from calcurve import CalibrationCurve
 
 # %% [markdown]
 # ## Generate balanced and imbalanced datasets
@@ -153,27 +153,29 @@ plt.tight_layout()
 # %% [markdown]
 # ### Analysis of Binning Strategy Impact
 #
-# The quantile strategy refuses to draw points in regions with few data points, which can lead to empty or sparse bins while the uniform strategy can create bins with no or very fewsamples resulting in very large uncertainty intervals for those regions.
+# The quantile strategy refuses to draw points in regions with few data points,
+# which can lead to empty or sparse bins while the uniform strategy can create
+# bins with no or very few samples resulting in very large uncertainty intervals
+# for those regions.
+#
+# With imbalanced data, the uniform strategy can lead to bins with very few
+# samples, as a result the uncertainty intervals may be very large to be
+# informative.
+#
+# The quantile strategy ensures balanced bin sizes, leading to more uniform
+# uncertainty throughout the curve, even when predictions are not uniformly
+# distributed which is often the case when classes are imbalanced.
 #
 # - Equal Width (Uniform):
-#   - Pros: Easy to interpret, fixed bin widths.
-#   - Cons: May have empty or sparse bins with imbalanced data, as a result the uncertainty intervals may be very large to be informative.
+#   - Pros: Easy to understand, consistent bin widths
+#   - Cons: Can have empty or sparse bins with large uncertainties
 #
 # - Equal Frequency (Quantile):
-#   - Pros: Ensures balanced bin sizes, leading to more uniform uncertainty throughout the curve, even when predictions are not uniformly distributed which is often the case when classes are imbalanced.
-#   - Cons: Variable bin widths and truncated calibration curves can be surprising to the reader.
+#   - Pros: Ensures balanced bin sizes, leading to more uniform uncertainty
+#   - Cons: Variable bin widths and truncated curves can be surprising
 #
-#
-
-# %% [markdown]
-# ### Analysis of Binning Strategy Impact
-#
-# The quantile strategy refuses to draw points in regions with few data points, which can
-# lead to empty or sparse bins while the uniform strategy can create bins with no or very
-# few samples resulting in very large uncertainty intervals for those regions.
-#
-# Let's analyze different binning strategies and their interaction with the minimum
-# samples per bin parameter:
+# Let's analyze different binning strategies and their interaction with the
+# minimum samples per bin parameter:
 
 # %%
 # Create plots to compare binning strategies and min_samples_per_bins settings
@@ -197,12 +199,12 @@ for ax, setting in zip(axes.flat, settings):
     )
     cal.fit(y_imbal_test, lr_imbal_probs)
     cal.plot(ax=ax)
-    
+
     # Count samples in each bin for annotation
     bin_indices = np.searchsorted(cal._bin_edges, lr_imbal_probs) - 1
     bin_indices = np.clip(bin_indices, 0, len(cal._bin_edges) - 2)
     bin_counts = np.bincount(bin_indices, minlength=len(cal._bin_edges) - 1)
-    
+
     ax.set_title(f"{setting['title']}\n(n_bins={len(bin_counts)})")
     ax.grid(True, alpha=0.3)
 
@@ -213,13 +215,14 @@ plt.show()
 # Key observations about binning strategies and minimum samples per bin:
 #
 # 1. **Uniform Binning**:
-#    - Without minimum samples: Shows very wide confidence intervals in sparse regions
-#    - With minimum samples: Automatically merges sparse bins, leading to more stable
-#      estimates but variable bin widths
+#    - Without minimum samples: Shows very wide confidence intervals in sparse
+#      regions
+#    - With minimum samples: Automatically merges sparse bins, leading to more
+#      stable estimates but variable bin widths
 #
 # 2. **Quantile Binning**:
-#    - Without minimum samples: Naturally avoids very sparse bins but can still have
-#      some bins with few samples
+#    - Without minimum samples: Naturally avoids very sparse bins but can still
+#      have some bins with few samples
 #    - With minimum samples: Further reduces variance in uncertainty estimates by
 #      ensuring sufficient samples in each bin
 #
@@ -233,7 +236,8 @@ plt.show()
 #    - For balanced data: Any strategy works well, min_samples optional
 #    - For imbalanced data:
 #      - Use quantile binning OR
-#      - Use uniform binning with min_samples_per_bins to prevent unreliable estimates
+#      - Use uniform binning with min_samples_per_bins to prevent unreliable
+#        estimates
 #    - Rule of thumb: min_samples_per_bins should be at least 20-50 for reliable
 #      uncertainty estimates
 
@@ -385,14 +389,16 @@ plt.tight_layout()
 # %% [markdown]
 # ### Analysis of Uncertainty Estimation Methods
 #
-# All methods lead to qualitatively similar results on this dataset, with some method-specific characteristics:
+# All methods lead to qualitatively similar results on this dataset, with some
+# method-specific characteristics:
 #
 # - Bootstrap (100 vs 1000 resamples):
 #   - Both settings yield very similar confidence bands
 #   - Using 1000 resamples instead of 100 appears to add little value
 #   - Main limitation: can produce collapsed uncertainty estimates (zero width)
 #     in bins where all samples belong to the same class
-#   - This is particularly visible in regions with predicted probabilities close to 0
+#   - This is particularly visible in regions with predicted probabilities close
+#     to 0
 #
 # - Clopper-Pearson and Wilson-CC:
 #   - Both methods show similar characteristics
@@ -403,39 +409,43 @@ plt.tight_layout()
 #
 # - Comparative Analysis:
 #   - All methods show increased uncertainty in regions with sparse data (p > 0.6)
-#   - The analytical methods (Clopper-Pearson and Wilson-CC) guarantee proper coverage
-#     but may be conservative
-#   - Bootstrap can be problematic with very few samples due to potential collapse
-#     of uncertainty estimates
+#   - The analytical methods (Clopper-Pearson and Wilson-CC) guarantee proper
+#     coverage but may be conservative
+#   - Bootstrap can be problematic with very few samples due to potential
+#     collapse of uncertainty estimates
 #
 # - Recommendations:
 #   - For speed: Bootstrap with 100 resamples is sufficient
 #   - For guaranteed coverage: Either Clopper-Pearson or Wilson-CC
 
-
 # %% [markdown]
 # ## Summary of Findings and Recommendations
 #
 # 1. **Binning Strategy Impact**:
-#    - Quantile binning ensures balanced bin sizes, recommended for imbalanced data
-#    - Uniform binning can lead to empty or sparse bins, making uncertainty estimates very large (or unreliable with the bootstrap)
-#    - The choice of binning strategy is often more impactful than the choice of uncertainty method
+#    - Quantile binning ensures balanced bin sizes, recommended for imbalanced
+#      data
+#    - Uniform binning can lead to empty or sparse bins, making uncertainty
+#      estimates very large (or unreliable with the bootstrap)
+#    - The choice of binning strategy is often more impactful than the choice of
+#      uncertainty method
 #
 # 2. **Number of Bins**:
 #    - Fewer bins (5-10) provide smoother curves but may miss calibration details
 #    - More bins (20-50) show more detail but require sufficient samples per bin
 #    - Rule of thumb: aim for at least 5-10 samples of the minority class per bin
-#    - With imbalanced data, prefer fewer bins to ensure reliable uncertainty estimates
+#    - With imbalanced data, prefer fewer bins to ensure reliable uncertainty
+#      estimates
 #
 # 3. **Uncertainty Estimation Methods**:
-#    - All methods (Bootstrap, Clopper-Pearson, Wilson-CC) give qualitatively similar results
+#    - All methods (Bootstrap, Clopper-Pearson, Wilson-CC) give similar results
 #    - Bootstrap with 100 resamples is sufficient; more resamples add little value
 #    - Both Clopper-Pearson and Wilson-CC provide similar, conservative coverage
 #    - Bootstrap can produce collapsed intervals with homogeneous bins
 #
 # 4. **Practical Recommendations**:
 #    - For speed: Use Bootstrap with 100 resamples
-#    - For guaranteed coverage: use Clopper-Pearson (Wilson-CC seems to lead to comparable results)
-#    - Always report sample counts and class distribution alongside calibration curves
+#    - For guaranteed coverage: use Clopper-Pearson or Wilson-CC
+#    - Always report sample counts and class distribution alongside calibration
+#      curves
 
 # %%

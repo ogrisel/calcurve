@@ -16,8 +16,8 @@
 # %% [markdown]
 # # Benchmarking Uncertainty Estimation Methods
 #
-# This notebook compares the computational cost of different uncertainty estimation methods
-# available in the `calcurve` package:
+# This notebook compares the computational cost of different uncertainty
+# estimation methods available in the `calcurve` package:
 #
 # - Clopper-Pearson interval (exact method)
 # - Wilson Score with continuity correction (approximate method)
@@ -29,12 +29,14 @@
 # 3. Number of bootstrap iterations (for bootstrap method only)
 
 # %%
+import time
+
+import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.datasets import make_classification
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import train_test_split
-import matplotlib.pyplot as plt
-import time
+
 from calcurve import CalibrationCurve
 
 # For reproducibility
@@ -42,6 +44,7 @@ np.random.seed(42)
 
 # %% [markdown]
 # ## Generate datasets of different sizes
+
 
 # %%
 def generate_dataset(n_samples, n_informative=2):
@@ -63,6 +66,7 @@ def generate_dataset(n_samples, n_informative=2):
     y_pred = clf.predict_proba(X_test)[:, 1]
 
     return y_test, y_pred
+
 
 # %% [markdown]
 # ## Benchmark: Impact of Dataset Size with Multiple Trials
@@ -219,9 +223,9 @@ plt.tight_layout()
 # ## Analysis of Results
 #
 # ### Dataset Size Impact
-# - There is a clear separation between analytical methods (Wilson-CC, Clopper-Pearson) and bootstrap:
+# - There is a clear separation between analytical methods and bootstrap:
 #   - Bootstrap is 10-100x slower and shows clear linear scaling with dataset size
-#   - Analytical methods are much faster (<0.002s) even for 100K samples
+#   - Analytical methods are much faster (<0.002s) even with large datasets
 # - For analytical methods:
 #   - Wilson-CC is slightly faster than Clopper-Pearson for small datasets
 #   - The difference becomes negligible for larger datasets (>50K samples)
@@ -242,12 +246,10 @@ plt.tight_layout()
 #   - Wilson-CC maintains small but consistent advantage over Clopper-Pearson
 #
 # ### Bootstrap Iterations Impact
-# - Perfect linear relationship between iterations and computation time
-# - Quantitative scaling:
-#   - ~0.00026s per iteration (derived from slope)
+# - Linear scaling with number of iterations:
 #   - 100 iterations: ~0.026s
 #   - 1000 iterations: ~0.26s
-# - Very small standard deviations (not visible in plot), indicating consistent performance
+# - Very small standard deviations, indicating consistent performance
 #
 # ### Recommendations
 # 1. Default Choice:
