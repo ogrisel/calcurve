@@ -43,7 +43,6 @@ np.random.seed(42)
 # %% [markdown]
 # ## Generate datasets of different sizes
 
-
 # %%
 def generate_dataset(n_samples, n_informative=2):
     """Generate a binary classification dataset."""
@@ -64,7 +63,6 @@ def generate_dataset(n_samples, n_informative=2):
     y_pred = clf.predict_proba(X_test)[:, 1]
 
     return y_test, y_pred
-
 
 # %% [markdown]
 # ## Benchmark: Impact of Dataset Size with Multiple Trials

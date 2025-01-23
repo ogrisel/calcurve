@@ -166,6 +166,78 @@ plt.tight_layout()
 #
 
 # %% [markdown]
+# ### Analysis of Binning Strategy Impact
+#
+# The quantile strategy refuses to draw points in regions with few data points, which can
+# lead to empty or sparse bins while the uniform strategy can create bins with no or very
+# few samples resulting in very large uncertainty intervals for those regions.
+#
+# Let's analyze different binning strategies and their interaction with the minimum
+# samples per bin parameter:
+
+# %%
+# Create plots to compare binning strategies and min_samples_per_bins settings
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+fig.suptitle("Impact of Binning Strategy and Minimum Samples per Bin", fontsize=14)
+
+# Plot settings to compare
+settings = [
+    {"strategy": "uniform", "min_samples": None, "title": "Uniform Binning"},
+    {"strategy": "uniform", "min_samples": 50, "title": "Uniform + Min 50 Samples"},
+    {"strategy": "quantile", "min_samples": None, "title": "Quantile Binning"},
+    {"strategy": "quantile", "min_samples": 50, "title": "Quantile + Min 50 Samples"},
+]
+
+for ax, setting in zip(axes.flat, settings):
+    cal = CalibrationCurve(
+        binning_strategy=setting["strategy"],
+        n_bins=20,  # Use more bins to better see the effect
+        min_samples_per_bins=setting["min_samples"],
+        confidence_method="clopper_pearson",
+    )
+    cal.fit(y_imbal_test, lr_imbal_probs)
+    cal.plot(ax=ax)
+    
+    # Count samples in each bin for annotation
+    bin_indices = np.searchsorted(cal._bin_edges, lr_imbal_probs) - 1
+    bin_indices = np.clip(bin_indices, 0, len(cal._bin_edges) - 2)
+    bin_counts = np.bincount(bin_indices, minlength=len(cal._bin_edges) - 1)
+    
+    ax.set_title(f"{setting['title']}\n(n_bins={len(bin_counts)})")
+    ax.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# Key observations about binning strategies and minimum samples per bin:
+#
+# 1. **Uniform Binning**:
+#    - Without minimum samples: Shows very wide confidence intervals in sparse regions
+#    - With minimum samples: Automatically merges sparse bins, leading to more stable
+#      estimates but variable bin widths
+#
+# 2. **Quantile Binning**:
+#    - Without minimum samples: Naturally avoids very sparse bins but can still have
+#      some bins with few samples
+#    - With minimum samples: Further reduces variance in uncertainty estimates by
+#      ensuring sufficient samples in each bin
+#
+# 3. **Impact of Minimum Samples**:
+#    - Reduces the number of bins in sparse regions
+#    - Makes uncertainty estimates more reliable by ensuring sufficient data
+#    - Can lead to variable bin widths even with uniform binning
+#    - Most impactful with uniform binning in imbalanced datasets
+#
+# 4. **Recommendations**:
+#    - For balanced data: Any strategy works well, min_samples optional
+#    - For imbalanced data:
+#      - Use quantile binning OR
+#      - Use uniform binning with min_samples_per_bins to prevent unreliable estimates
+#    - Rule of thumb: min_samples_per_bins should be at least 20-50 for reliable
+#      uncertainty estimates
+
+# %% [markdown]
 # ## Bin Count Impact Analysis
 
 # %%
@@ -365,3 +437,5 @@ plt.tight_layout()
 #    - For speed: Use Bootstrap with 100 resamples
 #    - For guaranteed coverage: use Clopper-Pearson (Wilson-CC seems to lead to comparable results)
 #    - Always report sample counts and class distribution alongside calibration curves
+
+# %%

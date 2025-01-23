@@ -87,6 +87,9 @@ class CalibrationCurve:
         Strategy to bin the predictions
     n_bins : int, default=10
         Number of bins (ignored if binning_strategy='custom')
+    min_samples_per_bins : int or None, default=None
+        Minimum number of samples required in each bin. If a bin has fewer samples,
+        it will be merged with an adjacent bin. If None, no merging is performed.
     confidence_method : str, default='clopper_pearson'
         Method to compute confidence intervals. One of:
         - 'clopper_pearson': exact confidence interval
@@ -105,6 +108,7 @@ class CalibrationCurve:
         self,
         binning_strategy="quantile",
         n_bins=10,
+        min_samples_per_bins=None,
         confidence_method="clopper_pearson",
         confidence_level=0.90,
         n_bootstrap=100,
@@ -118,8 +122,12 @@ class CalibrationCurve:
                 f"got '{binning_strategy}'"
             )
 
+        if min_samples_per_bins is not None and min_samples_per_bins < 1:
+            raise ValueError("min_samples_per_bins must be at least 1 or None")
+
         self.binning_strategy = binning_strategy
         self.n_bins = n_bins
+        self.min_samples_per_bins = min_samples_per_bins
         self.confidence_method = confidence_method
         self.confidence_level = confidence_level
         self.n_bootstrap = n_bootstrap
@@ -131,22 +139,73 @@ class CalibrationCurve:
         self._ci_lower = None
         self._ci_upper = None
 
+    def _merge_small_bins(self, y_pred):
+        """Merge bins that have fewer than min_samples_per_bins samples.
+
+        The bin with the fewest samples is merged with its neighbor (left or right)
+        that has fewer samples. This process is repeated until all bins have at least
+        min_samples_per_bins samples.
+
+        Parameters
+        ----------
+        y_pred : array-like
+            Predicted probabilities used to compute bin counts
+        """
+        if self.min_samples_per_bins is None:
+            return
+
+        while True:
+            # Count samples in each bin
+            bin_indices = np.searchsorted(self._bin_edges, y_pred) - 1
+            bin_indices = np.clip(bin_indices, 0, len(self._bin_edges) - 2)
+            bin_counts = np.bincount(bin_indices, minlength=len(self._bin_edges) - 1)
+
+            # Find smallest bin that's below threshold
+            small_bins = np.where(bin_counts < self.min_samples_per_bins)[0]
+            if len(small_bins) == 0:
+                break
+
+            smallest_bin = small_bins[np.argmin(bin_counts[small_bins])]
+
+            # Decide which neighbor to merge with (prefer the smaller one)
+            left_count = bin_counts[smallest_bin - 1] if smallest_bin > 0 else np.inf
+            right_count = (
+                bin_counts[smallest_bin + 1]
+                if smallest_bin < len(bin_counts) - 1
+                else np.inf
+            )
+
+            # Merge with the smaller neighbor
+            if left_count <= right_count and smallest_bin > 0:
+                merge_idx = smallest_bin
+            else:
+                merge_idx = smallest_bin + 1
+
+            # Remove the bin edge to merge bins
+            self._bin_edges = np.delete(self._bin_edges, merge_idx)
+
     def _compute_bin_edges(self, y_pred):
         """Compute bin edges based on the chosen strategy."""
         if self.binning_strategy == "quantile":
-            return np.quantile(
-                y_pred,
-                np.linspace(0, 1, self.n_bins + 1),
+            edges = np.percentile(
+                y_pred, np.linspace(0, 100, self.n_bins + 1), method="linear"
             )
+            # Ensure edges span [0, 1]
+            edges[0] = 0
+            edges[-1] = 1
         elif self.binning_strategy == "uniform":
-            return np.linspace(0, 1, self.n_bins + 1)
+            edges = np.linspace(0, 1, self.n_bins + 1)
         else:
             if self._bin_edges is None:
                 raise ValueError(
                     "For custom binning strategy, bin_edges must be set using "
                     "set_bin_edges()"
                 )
-            return self._bin_edges
+            edges = self._bin_edges
+
+        self._bin_edges = edges
+        self._merge_small_bins(y_pred)
+        return self._bin_edges
 
     def set_bin_edges(self, bin_edges):
         """Set custom bin edges.
