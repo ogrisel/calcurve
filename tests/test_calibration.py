@@ -148,28 +148,34 @@ def test_min_samples_per_bins():
     # Without min_samples_per_bins
     cal_curve = CalibrationCurve(binning_strategy="uniform", n_bins=10)
     cal_curve.fit(y_true, y_pred)
-    original_edges = cal_curve._bin_edges
-    assert len(original_edges) == 11  # 10 bins = 11 edges
 
-    # With min_samples_per_bins=10
+    # Should have all 10 bins, even if some are small
+    assert len(cal_curve.bin_counts) == 10
+    assert np.min(cal_curve.bin_counts) < 10  # Some bins should be small
+
+    # With min_samples_per_bins=20
     cal_curve = CalibrationCurve(
-        binning_strategy="uniform", n_bins=10, min_samples_per_bins=10
+        binning_strategy="uniform",
+        n_bins=10,
+        min_samples_per_bins=20,
     )
     cal_curve.fit(y_true, y_pred)
-    merged_edges = cal_curve._bin_edges
 
-    # Should have fewer edges due to merging
-    assert len(merged_edges) < len(original_edges)
+    # Should have fewer bins after merging
+    assert len(cal_curve.bin_counts) < 10
+    # All bins should have at least min_samples_per_bins samples
+    assert np.min(cal_curve.bin_counts) >= 20
+    # Total number of samples should be preserved
+    assert np.sum(cal_curve.bin_counts) == 100
 
-    # Check that all bins now have at least 10 samples
-    bin_indices = np.searchsorted(merged_edges, y_pred) - 1
-    bin_indices = np.clip(bin_indices, 0, len(merged_edges) - 2)
-    bin_counts = np.bincount(bin_indices)
-    assert np.all(bin_counts >= 10)
 
-    # Test error handling
+def test_min_samples_per_bins_validation():
+    """Test validation of min_samples_per_bins parameter."""
     with pytest.raises(ValueError, match="min_samples_per_bins must be at least 1"):
         CalibrationCurve(min_samples_per_bins=0)
+
+    with pytest.raises(ValueError, match="min_samples_per_bins must be at least 1"):
+        CalibrationCurve(min_samples_per_bins=-1)
 
 
 def test_bootstrap_edge_cases():
@@ -441,3 +447,39 @@ def test_quantile_binning():
     # Edges should span [0, 1] in both cases
     assert cal._bin_edges[0] == 0
     assert cal._bin_edges[-1] == 1
+
+
+def test_bin_counts():
+    """Test that bin_counts property returns correct counts."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+
+    # Test with quantile binning
+    cal = CalibrationCurve(
+        binning_strategy="quantile",
+        n_bins=2,
+        random_state=42,
+    )
+
+    # Should raise error before fit
+    with pytest.raises(ValueError, match="Must call fit before accessing bin_counts"):
+        _ = cal.bin_counts
+
+    cal.fit(y_true, y_pred)
+
+    # Should have equal counts in each bin for quantile binning
+    assert len(cal.bin_counts) == 2
+    assert cal.bin_counts[0] == 50
+    assert cal.bin_counts[1] == 50
+
+    # Test with uniform binning
+    cal = CalibrationCurve(
+        binning_strategy="uniform",
+        n_bins=2,
+        random_state=42,
+    )
+    cal.fit(y_true, y_pred)
+
+    # For uniform binning with these specific values, all samples should be in the bins
+    assert len(cal.bin_counts) == 2
+    assert np.sum(cal.bin_counts) == 100

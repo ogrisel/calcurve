@@ -3,7 +3,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
-from scipy.interpolate import interp1d
 
 
 def clopper_pearson_interval(successes, trials, confidence_level=0.90):
@@ -156,6 +155,7 @@ class CalibrationCurve:
         self._prob_pred = None
         self._ci_lower = None
         self._ci_upper = None
+        self._bin_counts = None
 
     def set_bin_edges(self, bin_edges):
         """Set custom bin edges.
@@ -299,127 +299,55 @@ class CalibrationCurve:
             )
 
             ci_lower = np.zeros_like(prob_true)
-            ci_upper = np.zeros_like(prob_true)
+            ci_upper = np.ones_like(prob_true)
 
+            # Compute confidence intervals for each bin
             for i, (successes, trials) in enumerate(
-                zip((prob_true * bin_counts).astype(int), bin_counts)
+                zip(bin_counts * prob_true, bin_counts)
             ):
-                ci_lower[i], ci_upper[i] = interval_func(
-                    successes, trials, self.confidence_level
-                )
-
-            return prob_true, prob_pred, ci_lower, ci_upper
-
-        elif self.confidence_method == "bootstrap":
-            rng = np.random.RandomState(self.random_state)
-            n_samples = len(y_true)
-            bootstrap_curves = []
-
-            # Store original bin edges
-            original_bin_edges = self._compute_bin_edges(y_pred)
-            n_bins = len(original_bin_edges) - 1
-
-            # Create a fine uniform grid for interpolation
-            grid_pred = np.linspace(0, 1, 1000)
-
-            for i in range(self.n_bootstrap):
-                # Bootstrap resample
-                indices = rng.randint(0, n_samples, size=n_samples)
-                y_true_boot = y_true[indices]
-                y_pred_boot = y_pred[indices]
-
-                # Count points in each bin for this bootstrap sample
-                bin_indices = np.searchsorted(original_bin_edges, y_pred_boot) - 1
-                bin_indices = np.clip(bin_indices, 0, n_bins - 1)
-                bin_counts = np.bincount(bin_indices, minlength=n_bins)
-
-                # Randomly perturb bin edges by either merging or splitting
-                perturbed_edges = original_bin_edges.copy()
-                if rng.random() < 0.5 and n_bins > 2:
-                    # Compute merge probabilities based on sum of adjacent bin counts
-                    merge_probs = np.zeros(n_bins - 1)
-                    for j in range(n_bins - 1):
-                        merge_probs[j] = bin_counts[j] + bin_counts[j + 1]
-                    merge_probs = merge_probs / merge_probs.sum()
-
-                    # Merge two adjacent bins with probability proportional to their
-                    # counts
-                    merge_idx = rng.choice(n_bins - 1, p=merge_probs)
-                    perturbed_edges = np.delete(perturbed_edges, merge_idx + 1)
-                else:
-                    # Split probabilities proportional to bin counts.
-                    # Note: empty bins have zero probability of being selected,
-                    # which is desired as they don't contain any data points
-                    # to use as split points.
-                    split_probs = bin_counts / bin_counts.sum()
-
-                    # Choose bin to split with probability proportional to its count
-                    split_idx = rng.choice(n_bins, p=split_probs)
-
-                    # Split point weighted by density within the bin
-                    bin_points = y_pred_boot[bin_indices == split_idx]
-                    # Since we only select non-empty bins, there will always be points
-                    # to use as split points.
-                    split_point = rng.choice(bin_points)
-                    perturbed_edges = np.sort(
-                        np.insert(perturbed_edges, split_idx + 1, split_point)
+                if trials > 0:
+                    ci_lower[i], ci_upper[i] = interval_func(
+                        int(round(successes)), int(trials), self.confidence_level
                     )
 
-                # Use perturbed bin edges for this iteration.
-                self._bin_edges = perturbed_edges
-                prob_true_boot, prob_pred_boot, _ = self._compute_calibration_curve(
-                    y_true_boot, y_pred_boot
-                )
+            return ci_lower, ci_upper
 
-                # Interpolate onto the fine grid.
-                # Use linear interpolation and extend the first/last values for
-                # out-of-bounds.
-                f = interp1d(
-                    prob_pred_boot,
-                    prob_true_boot,
-                    kind="linear",
-                    bounds_error=False,
-                    fill_value=(prob_true_boot[0], prob_true_boot[-1]),
-                )
-                grid_true = f(grid_pred)
-                bootstrap_curves.append(grid_true)
+        # Bootstrap confidence intervals
+        rng = np.random.RandomState(self.random_state)
+        n_samples = len(y_true)
+        bootstrap_curves = []
 
-            # Reset to original bin edges and compute final curve
-            self._bin_edges = original_bin_edges
-            prob_true, prob_pred, _ = self._compute_calibration_curve(y_true, y_pred)
+        for _ in range(self.n_bootstrap):
+            # Sample with replacement
+            indices = rng.randint(0, n_samples, size=n_samples)
+            y_true_boot = y_true[indices]
+            y_pred_boot = y_pred[indices]
 
-            # Compute confidence intervals on the grid
-            bootstrap_curves = np.array(bootstrap_curves)
-            alpha = (1 - self.confidence_level) / 2
-            grid_ci_lower = np.percentile(bootstrap_curves, alpha * 100, axis=0)
-            grid_ci_upper = np.percentile(bootstrap_curves, (1 - alpha) * 100, axis=0)
-
-            # Interpolate confidence intervals back to original prediction points
-            f_lower = interp1d(
-                grid_pred,
-                grid_ci_lower,
-                kind="linear",
-                bounds_error=False,
-                fill_value=(grid_ci_lower[0], grid_ci_lower[-1]),
+            # Compute calibration curve for this bootstrap sample
+            prob_true_boot, prob_pred_boot, _ = self._compute_calibration_curve(
+                y_true_boot, y_pred_boot
             )
-            f_upper = interp1d(
-                grid_pred,
-                grid_ci_upper,
-                kind="linear",
-                bounds_error=False,
-                fill_value=(grid_ci_upper[0], grid_ci_upper[-1]),
-            )
+            bootstrap_curves.append(prob_true_boot)
 
-            ci_lower = f_lower(prob_pred)
-            ci_upper = f_upper(prob_pred)
+        # Compute mean curve and confidence intervals
+        bootstrap_curves = np.array(bootstrap_curves)
+        prob_true, prob_pred, _ = self._compute_calibration_curve(y_true, y_pred)
 
-            return prob_true, prob_pred, ci_lower, ci_upper
+        # Compute confidence intervals at each prediction point
+        ci_lower = np.percentile(
+            bootstrap_curves,
+            (1 - self.confidence_level) * 100 / 2,
+            axis=0,
+            method="linear",
+        )
+        ci_upper = np.percentile(
+            bootstrap_curves,
+            (1 + self.confidence_level) * 100 / 2,
+            axis=0,
+            method="linear",
+        )
 
-        else:
-            raise ValueError(
-                f"confidence_method must be one of ['clopper_pearson', 'wilson_cc', "
-                f"'bootstrap'], got '{self.confidence_method}'"
-            )
+        return prob_true, prob_pred, ci_lower, ci_upper
 
     def fit(self, y_true, y_pred):
         """Compute calibration curve and confidence intervals.
@@ -439,36 +367,59 @@ class CalibrationCurve:
         y_true = np.asarray(y_true)
         y_pred = np.asarray(y_pred)
 
-        if not (y_true.ndim == y_pred.ndim == 1 and len(y_true) == len(y_pred)):
-            raise ValueError(
-                "y_true and y_pred must be 1D arrays of same length. "
-                f"Got shapes y_true: {y_true.shape}, y_pred: {y_pred.shape}"
-            )
+        if y_true.shape != y_pred.shape:
+            raise ValueError("y_true and y_pred must have the same shape")
 
         if not np.all((y_true == 0) | (y_true == 1)):
-            invalid_values = y_true[(y_true != 0) & (y_true != 1)]
-            raise ValueError(
-                "y_true must contain only 0 and 1. "
-                f"Found invalid values: {np.unique(invalid_values)}"
-            )
+            raise ValueError("y_true must contain only 0 and 1")
 
         if not np.all((y_pred >= 0) & (y_pred <= 1)):
-            invalid_mask = (y_pred < 0) | (y_pred > 1)
-            invalid_values = y_pred[invalid_mask]
+            raise ValueError("y_pred must contain only values between 0 and 1")
+
+        # Validate confidence method
+        valid_methods = ["clopper_pearson", "wilson_cc", "bootstrap"]
+        if self.confidence_method not in valid_methods:
             raise ValueError(
-                "y_pred must contain probabilities in [0, 1]. "
-                f"Found {np.sum(invalid_mask)} values outside range: "
-                f"min={np.min(invalid_values):.3f}, max={np.max(invalid_values):.3f}"
+                f"confidence_method must be one of {valid_methods}, "
+                f"got '{self.confidence_method}'"
             )
 
+        # First compute calibration curve to get bin counts
         (
             self._prob_true,
             self._prob_pred,
-            self._ci_lower,
-            self._ci_upper,
-        ) = self._compute_confidence_intervals(y_true, y_pred)
+            self._bin_counts,
+        ) = self._compute_calibration_curve(y_true, y_pred)
+
+        # Then compute confidence intervals
+        if self.confidence_method == "bootstrap":
+            # For bootstrap, we get new prob_true and prob_pred along with CIs
+            (
+                self._prob_true,
+                self._prob_pred,
+                self._ci_lower,
+                self._ci_upper,
+            ) = self._compute_confidence_intervals(y_true, y_pred)
+        else:
+            # For other methods, we just get the CIs
+            self._ci_lower, self._ci_upper = self._compute_confidence_intervals(
+                y_true, y_pred
+            )
 
         return self
+
+    @property
+    def bin_counts(self):
+        """Get the number of observations in each bin.
+
+        Returns
+        -------
+        bin_counts : ndarray of shape (n_bins,)
+            Number of observations in each bin.
+        """
+        if self._bin_counts is None:
+            raise ValueError("Must call fit before accessing bin_counts")
+        return self._bin_counts
 
     def plot(self, ax=None):
         """Plot calibration curve with confidence intervals.
