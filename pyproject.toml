@@ -44,23 +44,6 @@ indent-width = 4
 # Assume Python 3.11
 target-version = "py311"
 
-[tool.ruff.lint]
-# Enable pycodestyle (E), pyflakes (F), and isort (I)
-select = ["E", "F", "I"]
-ignore = ["E203"]  # Ignore whitespace before ':' (black handles this)
-
 [tool.ruff.lint.isort]
 known-first-party = ["calcurve"]
 
-[tool.ruff.lint.per-file-ignores]
-"examples/*.py" = ["E501"]  # Ignore line length in example files
-
-[tool.ruff.format]
-# Use double quotes for strings
-quote-style = "double"
-# Indent with spaces
-indent-style = "space"
-# Skip magic trailing comma
-skip-magic-trailing-comma = false
-# Line ending style
-line-ending = "auto"
