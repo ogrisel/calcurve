@@ -1,13 +1,22 @@
 # calcurve
 
-Compute and visualize calibration curves with confidence intervals for scikit-learn binary classifiers.
+Compute and visualize calibration curves with confidence intervals for
+scikit-learn binary classifiers.
 
-DISCLAIMER: this code was generated using Windsurf IDE's Cascade agent with some guidance as an
-experiment to assess the productivity of working with such a tool.
+DISCLAIMER: this code was generated using Windsurf IDE's Cascade agent with
+some guidance as an experiment to assess the productivity of working with such
+a tool.
 
 The code is not necessarily correct, the tests are quite shallow, the analysis
 in the notebook is sometimes misled or inconsident with the plots, and I did
 not review them all.
+
+I reported some feedback on the main limitations I found when working with
+this tool:
+
+- https://codeium.canny.io/feature-requests/p/do-not-let-cascade-attempt-to-generate-jupyter-notebooks-from-scratch
+- https://codeium.canny.io/feature-requests/p/cascade-pretends-it-can-see-the-matplotlib-plots-embedded-in-a-jupyter-notebook
+
 
 ## Features
 
