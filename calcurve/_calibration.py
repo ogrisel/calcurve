@@ -227,8 +227,17 @@ class CalibrationCurve:
     def _compute_bin_edges(self, y_pred):
         """Compute bin edges based on the chosen strategy."""
         if self.binning_strategy == "quantile":
+            # For quantile binning, adjust n_bins based on min_samples_per_bins
+            if self.min_samples_per_bins is not None:
+                n_samples = len(y_pred)
+                max_bins = max(1, n_samples // self.min_samples_per_bins)
+                n_bins = min(self.n_bins, max_bins)
+            else:
+                n_bins = self.n_bins
+
+            # Use quantiles to ensure roughly equal number of samples per bin
             edges = np.percentile(
-                y_pred, np.linspace(0, 100, self.n_bins + 1), method="linear"
+                y_pred, np.linspace(0, 100, n_bins + 1), method="linear"
             )
             # Ensure edges span [0, 1]
             edges[0] = 0
@@ -350,6 +359,7 @@ class CalibrationCurve:
                     # Split point weighted by density within the bin
                     bin_points = y_pred_boot[bin_indices == split_idx]
                     # Since we only select non-empty bins, there will always be points
+                    # to use as split points.
                     split_point = rng.choice(bin_points)
                     perturbed_edges = np.sort(
                         np.insert(perturbed_edges, split_idx + 1, split_point)

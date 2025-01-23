@@ -396,3 +396,48 @@ def test_invalid_confidence_method():
 
     with pytest.raises(ValueError, match="confidence_method must be one of"):
         cal.fit(y_true, y_pred)
+
+
+def test_compute_bin_edges():
+    """Test _compute_bin_edges directly."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+
+    # Test custom binning without edges
+    cal = CalibrationCurve(binning_strategy="custom")
+    with pytest.raises(ValueError, match="bin_edges must be set using set_bin_edges"):
+        cal._compute_bin_edges(y_pred)
+
+
+def test_quantile_binning():
+    """Test quantile binning strategy with min_samples_per_bins=None."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+
+    # Test with min_samples_per_bins=None
+    cal = CalibrationCurve(
+        binning_strategy="quantile",
+        n_bins=10,
+        min_samples_per_bins=None,
+        random_state=42,
+    )
+    cal.fit(y_true, y_pred)
+
+    # Should have exactly n_bins + 1 edges
+    assert len(cal._bin_edges) == 11
+    assert cal.n_bins == 10  # Original n_bins unchanged
+
+    # Test with min_samples_per_bins=20
+    cal = CalibrationCurve(
+        binning_strategy="quantile",
+        n_bins=10,
+        min_samples_per_bins=20,
+        random_state=42,
+    )
+    cal.fit(y_true, y_pred)
+
+    # Should have fewer bins due to min_samples_per_bins
+    assert len(cal._bin_edges) <= 6  # 100 samples / 20 min_samples + 1
+
+    # Edges should span [0, 1] in both cases
+    assert cal._bin_edges[0] == 0
+    assert cal._bin_edges[-1] == 1
