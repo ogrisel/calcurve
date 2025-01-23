@@ -135,3 +135,36 @@ def test_plotting():
     cal.fit(y_true, y_pred)
     ax = cal.plot()
     assert ax is not None
+
+
+def test_min_samples_per_bins():
+    """Test that bins are merged when they have too few samples."""
+    # Create data with uneven distribution
+    y_pred = np.array([0.1] * 50 + [0.2] * 5 + [0.3] * 5 + [0.9] * 40)
+    y_true = np.zeros_like(y_pred)
+
+    # Without min_samples_per_bins
+    cal_curve = CalibrationCurve(binning_strategy="uniform", n_bins=10)
+    cal_curve.fit(y_true, y_pred)
+    original_edges = cal_curve._bin_edges
+    assert len(original_edges) == 11  # 10 bins = 11 edges
+
+    # With min_samples_per_bins=10
+    cal_curve = CalibrationCurve(
+        binning_strategy="uniform", n_bins=10, min_samples_per_bins=10
+    )
+    cal_curve.fit(y_true, y_pred)
+    merged_edges = cal_curve._bin_edges
+
+    # Should have fewer edges due to merging
+    assert len(merged_edges) < len(original_edges)
+
+    # Check that all bins now have at least 10 samples
+    bin_indices = np.searchsorted(merged_edges, y_pred) - 1
+    bin_indices = np.clip(bin_indices, 0, len(merged_edges) - 2)
+    bin_counts = np.bincount(bin_indices)
+    assert np.all(bin_counts >= 10)
+
+    # Test error handling
+    with pytest.raises(ValueError, match="min_samples_per_bins must be at least 1"):
+        CalibrationCurve(min_samples_per_bins=0)
