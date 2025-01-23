@@ -106,58 +106,46 @@ fig.suptitle(
 
 # Equal width binning on balanced data
 cal_uniform = CalibrationCurve(
-    binning_strategy='uniform',
+    binning_strategy="uniform",
     n_bins=10,
-    confidence_method='clopper_pearson',
+    confidence_method="clopper_pearson",
 )
 cal_uniform.fit(y_balanced_test, lr_balanced_probs)
 cal_uniform.plot(ax=axes[0, 0])
-axes[0, 0].set_title(
-    "Equal Width Binning (Uniform)\n"
-    "Balanced Data\n"
-    "10 bins"
-)
+axes[0, 0].set_title("Equal Width Binning (Uniform)\nBalanced Data\n10 bins")
 
 # Equal frequency binning on balanced data
 cal_quantile = CalibrationCurve(
-    binning_strategy='quantile',
+    binning_strategy="quantile",
     n_bins=10,
-    confidence_method='clopper_pearson',
+    confidence_method="clopper_pearson",
 )
 cal_quantile.fit(y_balanced_test, lr_balanced_probs)
 cal_quantile.plot(ax=axes[0, 1])
-axes[0, 1].set_title(
-    "Equal Frequency Binning (Quantile)\n"
-    "Balanced Data\n"
-    "10 bins"
-)
+axes[0, 1].set_title("Equal Frequency Binning (Quantile)\nBalanced Data\n10 bins")
 
 # Compare on imbalanced data
 cal_uniform_imbal = CalibrationCurve(
-    binning_strategy='uniform',
+    binning_strategy="uniform",
     n_bins=10,
-    confidence_method='clopper_pearson',
+    confidence_method="clopper_pearson",
 )
 cal_uniform_imbal.fit(y_imbal_test, lr_imbal_probs)
 cal_uniform_imbal.plot(ax=axes[1, 0])
 axes[1, 0].set_title(
-    "Equal Width Binning (Uniform)\n"
-    "Imbalanced Data (10% positive)\n"
-    "10 bins"
+    "Equal Width Binning (Uniform)\nImbalanced Data (10% positive)\n10 bins"
 )
 
 # Equal frequency binning on imbalanced data
 cal_quantile_imbal = CalibrationCurve(
-    binning_strategy='quantile',
+    binning_strategy="quantile",
     n_bins=10,
-    confidence_method='clopper_pearson',
+    confidence_method="clopper_pearson",
 )
 cal_quantile_imbal.fit(y_imbal_test, lr_imbal_probs)
 cal_quantile_imbal.plot(ax=axes[1, 1])
 axes[1, 1].set_title(
-    "Equal Frequency Binning (Quantile)\n"
-    "Imbalanced Data (10% positive)\n"
-    "10 bins"
+    "Equal Frequency Binning (Quantile)\nImbalanced Data (10% positive)\n10 bins"
 )
 
 plt.tight_layout()
@@ -222,11 +210,11 @@ fig.suptitle("Impact of Bin Count on Calibration Curves")
 for i, n_bins in enumerate(n_bins_list):
     row = i // 2
     col = i % 2
-    
+
     cal = CalibrationCurve(
-        binning_strategy='quantile',
+        binning_strategy="quantile",
         n_bins=n_bins,
-        confidence_method='clopper_pearson',
+        confidence_method="clopper_pearson",
     )
     cal.fit(y_test_subset, probs_subset)
     cal.plot(ax=axes[row, col])
@@ -259,19 +247,18 @@ plt.tight_layout()
 # Compare uncertainty estimation methods
 fig, axes = plt.subplots(2, 2, figsize=(15, 12))
 fig.suptitle(
-    "Comparison of Uncertainty Estimation Methods\n"
-    "Imbalanced Data (10% positive)"
+    "Comparison of Uncertainty Estimation Methods\nImbalanced Data (10% positive)"
 )
 
 n_bins = 15
 
 # Bootstrap confidence intervals (100 resamples)
 cal_bootstrap_100 = CalibrationCurve(
-    binning_strategy='quantile',
+    binning_strategy="quantile",
     n_bins=n_bins,
-    confidence_method='bootstrap',
+    confidence_method="bootstrap",
     n_bootstrap=100,
-    random_state=42
+    random_state=42,
 )
 cal_bootstrap_100.fit(y_test_subset, probs_subset)
 cal_bootstrap_100.plot(ax=axes[0, 0])
@@ -283,11 +270,11 @@ axes[0, 0].set_title(
 
 # Bootstrap confidence intervals (1000 resamples)
 cal_bootstrap_1000 = CalibrationCurve(
-    binning_strategy='quantile',
+    binning_strategy="quantile",
     n_bins=n_bins,
-    confidence_method='bootstrap',
+    confidence_method="bootstrap",
     n_bootstrap=1000,
-    random_state=42
+    random_state=42,
 )
 cal_bootstrap_1000.fit(y_test_subset, probs_subset)
 cal_bootstrap_1000.plot(ax=axes[0, 1])
@@ -299,9 +286,7 @@ axes[0, 1].set_title(
 
 # Clopper-Pearson intervals
 cal_clopper = CalibrationCurve(
-    binning_strategy='quantile',
-    n_bins=n_bins,
-    confidence_method='clopper_pearson'
+    binning_strategy="quantile", n_bins=n_bins, confidence_method="clopper_pearson"
 )
 cal_clopper.fit(y_test_subset, probs_subset)
 cal_clopper.plot(ax=axes[1, 0])
@@ -313,9 +298,7 @@ axes[1, 0].set_title(
 
 # Wilson intervals
 cal_wilson = CalibrationCurve(
-    binning_strategy='quantile',
-    n_bins=n_bins,
-    confidence_method='wilson_cc'
+    binning_strategy="quantile", n_bins=n_bins, confidence_method="wilson_cc"
 )
 cal_wilson.fit(y_test_subset, probs_subset)
 cal_wilson.plot(ax=axes[1, 1])

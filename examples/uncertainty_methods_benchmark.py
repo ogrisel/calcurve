@@ -43,6 +43,7 @@ np.random.seed(42)
 # %% [markdown]
 # ## Generate datasets of different sizes
 
+
 # %%
 def generate_dataset(n_samples, n_informative=2):
     """Generate a binary classification dataset."""
@@ -51,48 +52,51 @@ def generate_dataset(n_samples, n_informative=2):
         n_features=10,
         n_informative=n_informative,
         n_redundant=2,
-        random_state=42
+        random_state=42,
     )
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.3, random_state=42
     )
-    
+
     # Train a logistic regression model
     clf = LogisticRegression(random_state=42)
     clf.fit(X_train, y_train)
     y_pred = clf.predict_proba(X_test)[:, 1]
-    
+
     return y_test, y_pred
+
 
 # %% [markdown]
 # ## Benchmark: Impact of Dataset Size with Multiple Trials
 
 # %%
 dataset_sizes = [1000, 5000, 10000, 50000, 100000]
-methods = ['clopper_pearson', 'wilson_cc', 'bootstrap']
+methods = ["clopper_pearson", "wilson_cc", "bootstrap"]
 n_bins = 10
 n_bootstrap = 100
 n_trials = 10
 
 # Store timing results
-timing_results_size = {method: {size: [] for size in dataset_sizes} for method in methods}
+timing_results_size = {
+    method: {size: [] for size in dataset_sizes} for method in methods
+}
 
 for size in dataset_sizes:
     y_true, y_pred = generate_dataset(size)
-    
+
     for method in methods:
         for _ in range(n_trials):
             # Time the calibration curve computation
             start_time = time.time()
-            
+
             cal = CalibrationCurve(
-                binning_strategy='quantile',
+                binning_strategy="quantile",
                 n_bins=n_bins,
                 confidence_method=method,
-                n_bootstrap=n_bootstrap
+                n_bootstrap=n_bootstrap,
             )
             cal.fit(y_true, y_pred)
-            
+
             end_time = time.time()
             timing_results_size[method][size].append(end_time - start_time)
 
@@ -101,15 +105,14 @@ plt.figure(figsize=(10, 6))
 for method in methods:
     means = [np.mean(timing_results_size[method][size]) for size in dataset_sizes]
     stds = [np.std(timing_results_size[method][size]) for size in dataset_sizes]
-    
-    plt.errorbar(dataset_sizes, means, yerr=stds, 
-                marker='o', label=method, capsize=5)
 
-plt.xlabel('Dataset Size')
-plt.ylabel('Computation Time (seconds)')
-plt.title('Computation Time vs Dataset Size\n(with standard deviation over 10 trials)')
-plt.xscale('log')
-plt.yscale('log')
+    plt.errorbar(dataset_sizes, means, yerr=stds, marker="o", label=method, capsize=5)
+
+plt.xlabel("Dataset Size")
+plt.ylabel("Computation Time (seconds)")
+plt.title("Computation Time vs Dataset Size\n(with standard deviation over 10 trials)")
+plt.xscale("log")
+plt.yscale("log")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -133,22 +136,24 @@ fixed_size = 10000  # Use a fixed dataset size
 y_true, y_pred = generate_dataset(fixed_size)
 
 # Store timing results
-timing_results_bins = {method: {n_bins: [] for n_bins in n_bins_list} for method in methods}
+timing_results_bins = {
+    method: {n_bins: [] for n_bins in n_bins_list} for method in methods
+}
 
 for n_bins in n_bins_list:
     for method in methods:
         for _ in range(n_trials):
             # Time the calibration curve computation
             start_time = time.time()
-            
+
             cal = CalibrationCurve(
-                binning_strategy='quantile',
+                binning_strategy="quantile",
                 n_bins=n_bins,
                 confidence_method=method,
-                n_bootstrap=n_bootstrap
+                n_bootstrap=n_bootstrap,
             )
             cal.fit(y_true, y_pred)
-            
+
             end_time = time.time()
             timing_results_bins[method][n_bins].append(end_time - start_time)
 
@@ -157,13 +162,14 @@ plt.figure(figsize=(10, 6))
 for method in methods:
     means = [np.mean(timing_results_bins[method][n_bins]) for n_bins in n_bins_list]
     stds = [np.std(timing_results_bins[method][n_bins]) for n_bins in n_bins_list]
-    
-    plt.errorbar(n_bins_list, means, yerr=stds, 
-                marker='o', label=method, capsize=5)
 
-plt.xlabel('Number of Bins')
-plt.ylabel('Computation Time (seconds)')
-plt.title('Computation Time vs Number of Bins\n(with standard deviation over 10 trials)')
+    plt.errorbar(n_bins_list, means, yerr=stds, marker="o", label=method, capsize=5)
+
+plt.xlabel("Number of Bins")
+plt.ylabel("Computation Time (seconds)")
+plt.title(
+    "Computation Time vs Number of Bins\n(with standard deviation over 10 trials)"
+)
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -189,26 +195,25 @@ timing_results_bootstrap = []
 for n_bootstrap in n_bootstrap_list:
     # Time the calibration curve computation
     start_time = time.time()
-    
+
     cal = CalibrationCurve(
-        binning_strategy='quantile',
+        binning_strategy="quantile",
         n_bins=fixed_bins,
-        confidence_method='bootstrap',
-        n_bootstrap=n_bootstrap
+        confidence_method="bootstrap",
+        n_bootstrap=n_bootstrap,
     )
     cal.fit(y_true, y_pred)
-    
+
     end_time = time.time()
     timing_results_bootstrap.append(end_time - start_time)
 
 # Plot results
 plt.figure(figsize=(10, 6))
-plt.plot(n_bootstrap_list, timing_results_bootstrap, 
-         marker='o', color='blue')
+plt.plot(n_bootstrap_list, timing_results_bootstrap, marker="o", color="blue")
 
-plt.xlabel('Number of Bootstrap Iterations')
-plt.ylabel('Computation Time (seconds)')
-plt.title('Bootstrap Computation Time vs Number of Iterations')
+plt.xlabel("Number of Bootstrap Iterations")
+plt.ylabel("Computation Time (seconds)")
+plt.title("Bootstrap Computation Time vs Number of Iterations")
 plt.grid(True)
 plt.tight_layout()
 
