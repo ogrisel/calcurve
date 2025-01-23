@@ -31,6 +31,7 @@ dev = [
     "jupytext",
     "ipykernel",
     "ruff",
+    "pre-commit",
 ]
 
 [tool.pytest.ini_options]
