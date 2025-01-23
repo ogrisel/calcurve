@@ -87,8 +87,11 @@ class CalibrationCurve:
         Strategy to bin the predictions
     n_bins : int, default=10
         Number of bins (ignored if binning_strategy='custom')
-    confidence_method : {'clopper_pearson', 'wilson_cc', 'bootstrap'}, default='clopper_pearson'
-        Method to compute confidence intervals
+    confidence_method : str, default='clopper_pearson'
+        Method to compute confidence intervals. One of:
+        - 'clopper_pearson': exact confidence interval
+        - 'wilson_cc': Wilson score with continuity correction
+        - 'bootstrap': bootstrap resampling with interpolation
     confidence_level : float, default=0.90
         Confidence level for the intervals
     n_bootstrap : int, default=100
@@ -140,7 +143,8 @@ class CalibrationCurve:
         else:
             if self._bin_edges is None:
                 raise ValueError(
-                    "For custom binning strategy, bin_edges must be set using set_bin_edges()"
+                    "For custom binning strategy, bin_edges must be set using "
+                    "set_bin_edges()"
                 )
             return self._bin_edges
 
@@ -252,7 +256,8 @@ class CalibrationCurve:
                         merge_probs[j] = bin_counts[j] + bin_counts[j + 1]
                     merge_probs = merge_probs / merge_probs.sum()
 
-                    # Merge two adjacent bins with probability proportional to their counts
+                    # Merge two adjacent bins with probability proportional to their
+                    # counts
                     merge_idx = rng.choice(n_bins - 1, p=merge_probs)
                     perturbed_edges = np.delete(perturbed_edges, merge_idx + 1)
                 else:
@@ -276,14 +281,15 @@ class CalibrationCurve:
                         np.insert(perturbed_edges, split_idx + 1, split_point)
                     )
 
-                # Use perturbed bin edges for this iteration
+                # Use perturbed bin edges for this iteration.
                 self._bin_edges = perturbed_edges
                 prob_true_boot, prob_pred_boot, _ = self._compute_calibration_curve(
                     y_true_boot, y_pred_boot
                 )
 
-                # Interpolate onto the fine grid
-                # Use linear interpolation and extend the first/last values for out-of-bounds
+                # Interpolate onto the fine grid.
+                # Use linear interpolation and extend the first/last values for
+                # out-of-bounds.
                 f = interp1d(
                     prob_pred_boot,
                     prob_true_boot,
@@ -327,8 +333,8 @@ class CalibrationCurve:
 
         else:
             raise ValueError(
-                f"confidence_method must be one of ['clopper_pearson', 'wilson_cc', 'bootstrap'], "
-                f"got '{self.confidence_method}'"
+                f"confidence_method must be one of ['clopper_pearson', 'wilson_cc', "
+                f"'bootstrap'], got '{self.confidence_method}'"
             )
 
     def fit(self, y_true, y_pred):
