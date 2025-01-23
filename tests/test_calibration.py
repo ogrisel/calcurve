@@ -1,7 +1,9 @@
 """Tests for calibration curve computation and visualization."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+
 from calcurve import CalibrationCurve
 
 
@@ -168,3 +170,229 @@ def test_min_samples_per_bins():
     # Test error handling
     with pytest.raises(ValueError, match="min_samples_per_bins must be at least 1"):
         CalibrationCurve(min_samples_per_bins=0)
+
+
+def test_bootstrap_edge_cases():
+    """Test bootstrap confidence intervals with edge cases."""
+    # Case where all samples in a bin belong to same class
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)  # All negative class
+
+    cal = CalibrationCurve(confidence_method="bootstrap", n_bins=2, random_state=42)
+    cal.fit(y_true, y_pred)
+
+    # Check that confidence intervals are computed
+    assert cal._ci_lower is not None
+    assert cal._ci_upper is not None
+
+    # Case with very few samples
+    y_pred_small = np.array([0.1, 0.9])
+    y_true_small = np.array([0, 1])
+
+    cal = CalibrationCurve(confidence_method="bootstrap", n_bins=2, random_state=42)
+    cal.fit(y_true_small, y_pred_small)
+
+    # Check that confidence intervals are computed
+    assert cal._ci_lower is not None
+    assert cal._ci_upper is not None
+
+
+def test_merge_bins_edge_cases():
+    """Test bin merging with various edge cases."""
+    # Case where leftmost bin needs merging
+    y_pred = np.array([0.1] * 5 + [0.5] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+
+    cal = CalibrationCurve(
+        binning_strategy="uniform", n_bins=3, min_samples_per_bins=10
+    )
+    cal.fit(y_true, y_pred)
+
+    # Should merge the leftmost bin
+    assert len(cal._bin_edges) < 4  # Original had 4 edges for 3 bins
+
+    # Case where rightmost bin needs merging
+    y_pred = np.array([0.1] * 50 + [0.5] * 50 + [0.9] * 5)
+    cal.fit(y_true, y_pred)
+
+    # Should merge the rightmost bin
+    assert len(cal._bin_edges) < 4
+
+    # Case where middle bin needs merging
+    y_pred = np.array([0.1] * 50 + [0.5] * 5 + [0.9] * 50)
+    cal.fit(y_true, y_pred)
+
+    # Should merge the middle bin
+    assert len(cal._bin_edges) < 4
+
+
+def test_plotting_options():
+    """Test plotting with different matplotlib configurations."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+
+    cal = CalibrationCurve()
+    cal.fit(y_true, y_pred)
+
+    # Test plotting without existing axes
+    ax = cal.plot()
+    assert ax is not None
+    plt.close()
+
+    # Test plotting with custom figure size
+    fig, ax = plt.subplots(figsize=(10, 8))
+    cal.plot(ax=ax)
+    plt.close()
+
+    # Test plotting with grid
+    fig, ax = plt.subplots()
+    ax.grid(True)
+    cal.plot(ax=ax)
+    plt.close()
+
+
+def test_input_validation_extended():
+    """Test additional input validation cases."""
+    # Test invalid confidence method
+    with pytest.raises(ValueError, match="confidence_method must be one of"):
+        CalibrationCurve(confidence_method="invalid")
+
+    # Test invalid confidence level
+    with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        CalibrationCurve(confidence_level=1.5)
+
+    with pytest.raises(ValueError, match="confidence_level must be between 0 and 1"):
+        CalibrationCurve(confidence_level=-0.1)
+
+    # Test invalid n_bootstrap
+    with pytest.raises(ValueError, match="n_bootstrap must be positive"):
+        CalibrationCurve(confidence_method="bootstrap", n_bootstrap=0)
+
+    # Test invalid n_bins
+    with pytest.raises(ValueError, match="n_bins must be positive"):
+        CalibrationCurve(n_bins=0)
+
+    # Test invalid bin edges
+    cal = CalibrationCurve(binning_strategy="custom")
+    with pytest.raises(
+        ValueError, match="bin_edges must be strictly increasing and span"
+    ):
+        cal.set_bin_edges([0, 0.5, 0.3, 1])
+
+    with pytest.raises(
+        ValueError, match="bin_edges must be strictly increasing and span"
+    ):
+        cal.set_bin_edges([-0.1, 0.5, 1])
+
+    with pytest.raises(
+        ValueError, match="bin_edges must be strictly increasing and span"
+    ):
+        cal.set_bin_edges([0, 0.5, 1.1])
+
+
+def test_bootstrap_bin_splitting():
+    """Test bootstrap bin splitting with different binning strategies."""
+    # Create data with a large gap
+    y_pred = np.array([0.1] * 100 + [0.9] * 100)
+    y_true = np.zeros_like(y_pred)
+    y_true[100:] = 1  # Perfect separation
+
+    # Test with uniform binning
+    cal = CalibrationCurve(
+        binning_strategy="uniform",
+        confidence_method="bootstrap",
+        n_bins=5,
+        random_state=42,
+    )
+    cal.fit(y_true, y_pred)
+
+    # Check that confidence intervals are computed
+    assert cal._ci_lower is not None
+    assert cal._ci_upper is not None
+
+    # Test with custom bin edges
+    cal = CalibrationCurve(
+        binning_strategy="custom", confidence_method="bootstrap", random_state=42
+    )
+    cal.set_bin_edges([0, 0.2, 0.4, 0.6, 0.8, 1])
+    cal.fit(y_true, y_pred)
+
+    # Check that confidence intervals are computed
+    assert cal._ci_lower is not None
+    assert cal._ci_upper is not None
+
+    # Test with quantile binning
+    cal = CalibrationCurve(
+        binning_strategy="quantile",
+        confidence_method="bootstrap",
+        n_bins=5,
+        random_state=42,
+    )
+    cal.fit(y_true, y_pred)
+
+    # Check that confidence intervals are computed
+    assert cal._ci_lower is not None
+    assert cal._ci_upper is not None
+
+
+def test_plotting_with_confidence():
+    """Test plotting with confidence intervals."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+    y_true[50:] = 1  # Perfect separation
+
+    # Test with each confidence method
+    for method in ["clopper_pearson", "wilson_cc", "bootstrap"]:
+        cal = CalibrationCurve(confidence_method=method)
+        cal.fit(y_true, y_pred)
+        ax = cal.plot()
+        assert ax is not None
+        plt.close()
+
+
+def test_custom_binning_without_edges():
+    """Test error when using custom binning without setting edges."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+
+    cal = CalibrationCurve(binning_strategy="custom")
+    with pytest.raises(ValueError, match="bin_edges must be set using set_bin_edges"):
+        cal.fit(y_true, y_pred)
+
+
+def test_edge_case_predictions():
+    """Test handling of edge case predictions."""
+    # All predictions are the same value
+    y_pred = np.array([0.5] * 100)
+    y_true = np.random.randint(0, 2, size=100)
+
+    cal = CalibrationCurve(n_bins=10)
+    cal.fit(y_true, y_pred)
+
+    # Check that calibration curve is computed
+    assert cal._prob_true is not None
+    assert cal._prob_pred is not None
+
+    # Test with very few unique values
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.random.randint(0, 2, size=100)
+
+    cal = CalibrationCurve(n_bins=10)
+    cal.fit(y_true, y_pred)
+
+    # Check that calibration curve is computed
+    assert cal._prob_true is not None
+    assert cal._prob_pred is not None
+
+
+def test_invalid_confidence_method():
+    """Test error when invalid confidence method is used."""
+    y_pred = np.array([0.1] * 50 + [0.9] * 50)
+    y_true = np.zeros_like(y_pred)
+
+    # Create instance with valid method but then change it
+    cal = CalibrationCurve()
+    cal.confidence_method = "invalid"
+
+    with pytest.raises(ValueError, match="confidence_method must be one of"):
+        cal.fit(y_true, y_pred)

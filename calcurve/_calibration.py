@@ -1,9 +1,9 @@
 """Core implementation of calibration curves with confidence intervals."""
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
 
 
 def clopper_pearson_interval(successes, trials, confidence_level=0.90):
@@ -125,6 +125,24 @@ class CalibrationCurve:
         if min_samples_per_bins is not None and min_samples_per_bins < 1:
             raise ValueError("min_samples_per_bins must be at least 1 or None")
 
+        # Validate confidence method
+        valid_methods = ["clopper_pearson", "wilson_cc", "bootstrap"]
+        if confidence_method not in valid_methods:
+            raise ValueError(
+                f"confidence_method must be one of {valid_methods}, "
+                f"got '{confidence_method}'"
+            )
+
+        # Validate other parameters
+        if not 0 < confidence_level < 1:
+            raise ValueError("confidence_level must be between 0 and 1")
+
+        if n_bins < 1:
+            raise ValueError("n_bins must be positive")
+
+        if confidence_method == "bootstrap" and n_bootstrap < 1:
+            raise ValueError("n_bootstrap must be positive")
+
         self.binning_strategy = binning_strategy
         self.n_bins = n_bins
         self.min_samples_per_bins = min_samples_per_bins
@@ -138,6 +156,28 @@ class CalibrationCurve:
         self._prob_pred = None
         self._ci_lower = None
         self._ci_upper = None
+
+    def set_bin_edges(self, bin_edges):
+        """Set custom bin edges.
+
+        Parameters
+        ----------
+        bin_edges : array-like of shape (n_bins + 1,)
+            Custom bin edges to use
+        """
+        bin_edges = np.asarray(bin_edges)
+        if not (
+            np.all(np.diff(bin_edges) > 0)
+            and np.isclose(bin_edges[0], 0)
+            and np.isclose(bin_edges[-1], 1)
+        ):
+            raise ValueError(
+                "bin_edges must be strictly increasing and span [0, 1]. "
+                f"Got edges from {bin_edges[0]:.3f} to {bin_edges[-1]:.3f} "
+                f"with {np.sum(np.diff(bin_edges) <= 0)} non-increasing intervals"
+            )
+        self._bin_edges = bin_edges
+        return self
 
     def _merge_small_bins(self, y_pred):
         """Merge bins that have fewer than min_samples_per_bins samples.
@@ -206,28 +246,6 @@ class CalibrationCurve:
         self._bin_edges = edges
         self._merge_small_bins(y_pred)
         return self._bin_edges
-
-    def set_bin_edges(self, bin_edges):
-        """Set custom bin edges.
-
-        Parameters
-        ----------
-        bin_edges : array-like of shape (n_bins + 1,)
-            Custom bin edges to use
-        """
-        bin_edges = np.asarray(bin_edges)
-        if not (
-            np.all(np.diff(bin_edges) > 0)
-            and np.isclose(bin_edges[0], 0)
-            and np.isclose(bin_edges[-1], 1)
-        ):
-            raise ValueError(
-                "bin_edges must be strictly increasing and span [0, 1]. "
-                f"Got edges from {bin_edges[0]:.3f} to {bin_edges[-1]:.3f} "
-                f"with {np.sum(np.diff(bin_edges) <= 0)} non-increasing intervals"
-            )
-        self._bin_edges = bin_edges
-        return self
 
     def _compute_calibration_curve(self, y_true, y_pred):
         """Compute calibration curve for a single set of predictions."""
@@ -320,7 +338,10 @@ class CalibrationCurve:
                     merge_idx = rng.choice(n_bins - 1, p=merge_probs)
                     perturbed_edges = np.delete(perturbed_edges, merge_idx + 1)
                 else:
-                    # Split probabilities proportional to bin counts
+                    # Split probabilities proportional to bin counts.
+                    # Note: empty bins have zero probability of being selected,
+                    # which is desired as they don't contain any data points
+                    # to use as split points.
                     split_probs = bin_counts / bin_counts.sum()
 
                     # Choose bin to split with probability proportional to its count
@@ -328,14 +349,8 @@ class CalibrationCurve:
 
                     # Split point weighted by density within the bin
                     bin_points = y_pred_boot[bin_indices == split_idx]
-                    if len(bin_points) > 0:
-                        # Use a random point from the actual data in this bin
-                        split_point = rng.choice(bin_points)
-                    else:
-                        # Fallback to uniform if bin is empty
-                        split_point = rng.uniform(
-                            perturbed_edges[split_idx], perturbed_edges[split_idx + 1]
-                        )
+                    # Since we only select non-empty bins, there will always be points
+                    split_point = rng.choice(bin_points)
                     perturbed_edges = np.sort(
                         np.insert(perturbed_edges, split_idx + 1, split_point)
                     )
