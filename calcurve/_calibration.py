@@ -224,6 +224,7 @@ class CalibrationCurve:
             
             # Store original bin edges
             original_bin_edges = self._compute_bin_edges(y_pred)
+            n_bins = len(original_bin_edges) - 1
             
             # Create a fine uniform grid for interpolation
             grid_pred = np.linspace(0, 1, 1000)
@@ -234,8 +235,45 @@ class CalibrationCurve:
                 y_true_boot = y_true[indices]
                 y_pred_boot = y_pred[indices]
                 
-                # Use original bin edges for consistency
-                self._bin_edges = original_bin_edges
+                # Count points in each bin for this bootstrap sample
+                bin_indices = np.searchsorted(original_bin_edges, y_pred_boot) - 1
+                bin_indices = np.clip(bin_indices, 0, n_bins - 1)
+                bin_counts = np.bincount(bin_indices, minlength=n_bins)
+                
+                # Randomly perturb bin edges by either merging or splitting
+                perturbed_edges = original_bin_edges.copy()
+                if rng.random() < 0.5 and n_bins > 2:
+                    # Compute merge probabilities based on sum of adjacent bin counts
+                    merge_probs = np.zeros(n_bins - 1)
+                    for j in range(n_bins - 1):
+                        merge_probs[j] = bin_counts[j] + bin_counts[j + 1]
+                    merge_probs = merge_probs / merge_probs.sum()
+                    
+                    # Merge two adjacent bins with probability proportional to their counts
+                    merge_idx = rng.choice(n_bins - 1, p=merge_probs)
+                    perturbed_edges = np.delete(perturbed_edges, merge_idx + 1)
+                else:
+                    # Split probabilities proportional to bin counts
+                    split_probs = bin_counts / bin_counts.sum()
+                    
+                    # Choose bin to split with probability proportional to its count
+                    split_idx = rng.choice(n_bins, p=split_probs)
+                    
+                    # Split point weighted by density within the bin
+                    bin_points = y_pred_boot[bin_indices == split_idx]
+                    if len(bin_points) > 0:
+                        # Use a random point from the actual data in this bin
+                        split_point = rng.choice(bin_points)
+                    else:
+                        # Fallback to uniform if bin is empty
+                        split_point = rng.uniform(
+                            perturbed_edges[split_idx],
+                            perturbed_edges[split_idx + 1]
+                        )
+                    perturbed_edges = np.sort(np.insert(perturbed_edges, split_idx + 1, split_point))
+                
+                # Use perturbed bin edges for this iteration
+                self._bin_edges = perturbed_edges
                 prob_true_boot, prob_pred_boot, _ = self._compute_calibration_curve(
                     y_true_boot, y_pred_boot
                 )
@@ -252,7 +290,8 @@ class CalibrationCurve:
                 grid_true = f(grid_pred)
                 bootstrap_curves.append(grid_true)
             
-            # Compute final curve
+            # Reset to original bin edges and compute final curve
+            self._bin_edges = original_bin_edges
             prob_true, prob_pred, _ = self._compute_calibration_curve(y_true, y_pred)
             
             # Compute confidence intervals on the grid
