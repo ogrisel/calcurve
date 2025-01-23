@@ -204,6 +204,10 @@ for ax, setting in zip(axes.flat, settings):
     bin_indices = np.searchsorted(cal._bin_edges, lr_imbal_probs) - 1
     bin_indices = np.clip(bin_indices, 0, len(cal._bin_edges) - 2)
     bin_counts = np.bincount(bin_indices, minlength=len(cal._bin_edges) - 1)
+    print(
+        f"Strategy: {setting['strategy']}, min Samples per bin: "
+        f"{setting['min_samples']}: bin_counts: {bin_counts}"
+    )
 
     ax.set_title(f"{setting['title']}\n(n_bins={len(bin_counts)})")
     ax.grid(True, alpha=0.3)

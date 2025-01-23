@@ -16,8 +16,8 @@
 # %% [markdown]
 # # Benchmarking Uncertainty Estimation Methods
 #
-# This notebook compares the computational cost of different uncertainty
-# estimation methods available in the `calcurve` package:
+# This notebook compares the computational cost of different uncertainty estimation methods
+# available in the `calcurve` package:
 #
 # - Clopper-Pearson interval (exact method)
 # - Wilson Score with continuity correction (approximate method)
@@ -223,9 +223,9 @@ plt.tight_layout()
 # ## Analysis of Results
 #
 # ### Dataset Size Impact
-# - There is a clear separation between analytical methods and bootstrap:
+# - There is a clear separation between analytical methods (Wilson-CC, Clopper-Pearson) and bootstrap:
 #   - Bootstrap is 10-100x slower and shows clear linear scaling with dataset size
-#   - Analytical methods are much faster (<0.002s) even with large datasets
+#   - Analytical methods are much faster (<0.002s) even for 100K samples
 # - For analytical methods:
 #   - Wilson-CC is slightly faster than Clopper-Pearson for small datasets
 #   - The difference becomes negligible for larger datasets (>50K samples)
@@ -246,10 +246,12 @@ plt.tight_layout()
 #   - Wilson-CC maintains small but consistent advantage over Clopper-Pearson
 #
 # ### Bootstrap Iterations Impact
-# - Linear scaling with number of iterations:
+# - Perfect linear relationship between iterations and computation time
+# - Quantitative scaling:
+#   - ~0.00026s per iteration (derived from slope)
 #   - 100 iterations: ~0.026s
 #   - 1000 iterations: ~0.26s
-# - Very small standard deviations, indicating consistent performance
+# - Very small standard deviations (not visible in plot), indicating consistent performance
 #
 # ### Recommendations
 # 1. Default Choice:
