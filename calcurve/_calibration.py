@@ -322,14 +322,18 @@ class CalibrationCurve:
                 y_true_boot, y_pred_boot
             )
 
-            # Interpolated calibration curve on the grid.
-            prob_true_boot = interp1d(
-                prob_pred_boot,
-                prob_true_boot,
-                kind="linear",
-                bounds_error=False,
-                fill_value="extrapolate",
-            )(y_pred_grid)
+            # If all predictions are the same, no interpolation is needed.
+            if prob_pred_boot.min() == prob_pred_boot.max():
+                prob_true_boot = np.full_like(y_pred_grid, prob_true_boot[0])
+            else:
+                # Interpolated calibration curve on the grid.
+                prob_true_boot = interp1d(
+                    prob_pred_boot,
+                    prob_true_boot,
+                    kind="linear",
+                    bounds_error=False,
+                    fill_value="extrapolate",
+                )(y_pred_grid)
 
             bootstrap_curves.append(prob_true_boot)
 
