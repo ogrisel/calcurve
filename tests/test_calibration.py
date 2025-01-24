@@ -7,42 +7,48 @@ import pytest
 from calcurve import CalibrationCurve
 
 
-def test_clopper_pearson_interval():
-    """Test Clopper-Pearson interval computation."""
-    from calcurve._calibration import clopper_pearson_interval
+def test_confidence_interval_clopper_pearson():
+    """Test confidence interval computation with Clopper-Pearson method."""
+    from calcurve._calibration import binom_test_interval
 
     # Test empty bin
-    lower, upper = clopper_pearson_interval(0, 0)
+    lower, upper = binom_test_interval(0, 0, method="clopper_pearson")
     assert lower == 0.0
     assert upper == 1.0
 
     # Test full bin
-    lower, upper = clopper_pearson_interval(10, 10, confidence_level=0.90)
+    lower, upper = binom_test_interval(
+        10, 10, confidence_level=0.90, method="clopper_pearson"
+    )
     assert lower > 0.7  # Approximate check
     assert upper == 1.0
 
     # Test partial bin
-    lower, upper = clopper_pearson_interval(5, 10, confidence_level=0.90)
+    lower, upper = binom_test_interval(
+        5, 10, confidence_level=0.90, method="clopper_pearson"
+    )
     assert 0.2 < lower < 0.4  # Approximate check
     assert 0.6 < upper < 0.8  # Approximate check
 
 
-def test_wilson_cc_interval():
-    """Test Wilson score interval with continuity correction."""
-    from calcurve._calibration import wilson_cc_interval
+def test_confidence_interval_wilson_cc():
+    """Test confidence interval computation with Wilson score method."""
+    from calcurve._calibration import binom_test_interval
 
     # Test empty bin
-    lower, upper = wilson_cc_interval(0, 0)
+    lower, upper = binom_test_interval(0, 0, method="wilson_cc")
     assert lower == 0.0
     assert upper == 1.0
 
     # Test full bin
-    lower, upper = wilson_cc_interval(10, 10, confidence_level=0.90)
+    lower, upper = binom_test_interval(
+        10, 10, confidence_level=0.90, method="wilson_cc"
+    )
     assert lower > 0.7  # Approximate check
     assert upper == 1.0
 
     # Test partial bin
-    lower, upper = wilson_cc_interval(5, 10, confidence_level=0.90)
+    lower, upper = binom_test_interval(5, 10, confidence_level=0.90, method="wilson_cc")
     assert 0.2 < lower < 0.4  # Approximate check
     assert 0.6 < upper < 0.8  # Approximate check
 

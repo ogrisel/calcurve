@@ -83,6 +83,10 @@ def binom_test_interval(
 ):
     """Compute confidence interval using scipy.stats.binomtest.
 
+    This function uses SciPy's binomial test implementation to compute confidence
+    intervals for a binomial proportion. It supports both Clopper-Pearson exact
+    intervals and Wilson score intervals with continuity correction.
+
     Parameters
     ----------
     successes : int
@@ -91,6 +95,10 @@ def binom_test_interval(
         Number of trials
     confidence_level : float, default=0.90
         Confidence level for the interval
+    method : str, default="clopper_pearson"
+        Method to compute confidence intervals. One of:
+        - "clopper_pearson": exact confidence interval
+        - "wilson_cc": Wilson score with continuity correction
 
     Returns
     -------
@@ -127,9 +135,11 @@ class CalibrationCurve:
     Parameters
     ----------
     binning_strategy : {'quantile', 'uniform', 'custom'}, default='quantile'
-        Strategy to bin the predictions
+        Strategy to bin the predictions. 'quantile' is recommended for imbalanced
+        datasets as it ensures roughly equal number of samples per bin.
     n_bins : int, default=10
-        Number of bins (ignored if binning_strategy='custom')
+        Number of bins (ignored if binning_strategy='custom'). Higher values show
+        more detail but may lead to wider confidence intervals in sparse regions.
     min_samples_per_bins : int, default=1
         Minimum number of samples required in each bin. If a bin contains fewer
         samples than this threshold, it will be merged with adjacent bins until
@@ -145,7 +155,7 @@ class CalibrationCurve:
 
     confidence_method : str, default='clopper_pearson'
         Method to compute confidence intervals. One of:
-        - 'clopper_pearson': exact confidence interval
+        - 'clopper_pearson': exact confidence interval (recommended)
         - 'wilson_cc': Wilson score with continuity correction
         - 'bootstrap': bootstrap resampling with interpolation
     confidence_level : float, default=0.90
