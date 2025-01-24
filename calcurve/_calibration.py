@@ -3,6 +3,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
+from scipy.interpolate import interp1d
 
 
 def clopper_pearson_interval(successes, trials, confidence_level=0.90):
@@ -78,7 +79,11 @@ def wilson_cc_interval(successes, trials, confidence_level=0.90):
 
 
 class CalibrationCurve:
-    """Calibration curve with confidence intervals for binary classifiers.
+    """Compute and plot calibration curves with confidence intervals.
+
+    A calibration curve shows the relationship between predicted probabilities
+    and the true proportion of positive samples. A perfectly calibrated model
+    would have a calibration curve that follows the diagonal y=x line.
 
     Parameters
     ----------
@@ -86,9 +91,19 @@ class CalibrationCurve:
         Strategy to bin the predictions
     n_bins : int, default=10
         Number of bins (ignored if binning_strategy='custom')
-    min_samples_per_bins : int or None, default=None
-        Minimum number of samples required in each bin. If a bin has fewer samples,
-        it will be merged with an adjacent bin. If None, no merging is performed.
+    min_samples_per_bins : int, default=None
+        Minimum number of samples required in each bin. If a bin contains fewer
+        samples than this threshold, it will be merged with adjacent bins until
+        the threshold is met. This helps ensure reliable calibration estimates
+        by avoiding bins with too few samples. Must be at least 1 or None.
+
+        For example, if min_samples_per_bins=20 and a bin contains only 5 samples,
+        it will be merged with adjacent bins until the combined bin has at least
+        20 samples. This is particularly useful when:
+        - Working with imbalanced datasets
+        - Using uniform binning with sparse regions
+        - Needing robust confidence interval estimates
+
     confidence_method : str, default='clopper_pearson'
         Method to compute confidence intervals. One of:
         - 'clopper_pearson': exact confidence interval
@@ -150,12 +165,12 @@ class CalibrationCurve:
         self.n_bootstrap = n_bootstrap
         self.random_state = random_state
 
+        self._bin_counts = None
         self._bin_edges = None
         self._prob_true = None
         self._prob_pred = None
         self._ci_lower = None
         self._ci_upper = None
-        self._bin_counts = None
 
     def set_bin_edges(self, bin_edges):
         """Set custom bin edges.
@@ -179,7 +194,7 @@ class CalibrationCurve:
         self._bin_edges = bin_edges
         return self
 
-    def _merge_small_bins(self, y_pred):
+    def _merge_small_bins(self, bin_edges, y_pred):
         """Merge bins that have fewer than min_samples_per_bins samples.
 
         The bin with the fewest samples is merged with its neighbor (left or right)
@@ -188,17 +203,25 @@ class CalibrationCurve:
 
         Parameters
         ----------
+        bin_edges : array-like of shape (n_bins + 1,)
+            Bin edges to use for merging
+
         y_pred : array-like
             Predicted probabilities used to compute bin counts
+
+        Returns
+        -------
+        bin_edges : array-like of shape (n_bins + 1,)
+            Merged bin edges
         """
         if self.min_samples_per_bins is None:
-            return
+            return bin_edges
 
         while True:
             # Count samples in each bin
-            bin_indices = np.searchsorted(self._bin_edges, y_pred) - 1
-            bin_indices = np.clip(bin_indices, 0, len(self._bin_edges) - 2)
-            bin_counts = np.bincount(bin_indices, minlength=len(self._bin_edges) - 1)
+            bin_indices = np.searchsorted(bin_edges, y_pred) - 1
+            bin_indices = np.clip(bin_indices, 0, len(bin_edges) - 2)
+            bin_counts = np.bincount(bin_indices, minlength=len(bin_edges) - 1)
 
             # Find smallest bin that's below threshold
             small_bins = np.where(bin_counts < self.min_samples_per_bins)[0]
@@ -222,7 +245,9 @@ class CalibrationCurve:
                 merge_idx = smallest_bin + 1
 
             # Remove the bin edge to merge bins
-            self._bin_edges = np.delete(self._bin_edges, merge_idx)
+            bin_edges = np.delete(bin_edges, merge_idx)
+
+        return bin_edges
 
     def _compute_bin_edges(self, y_pred):
         """Compute bin edges based on the chosen strategy."""
@@ -236,9 +261,7 @@ class CalibrationCurve:
                 n_bins = self.n_bins
 
             # Use quantiles to ensure roughly equal number of samples per bin
-            edges = np.percentile(
-                y_pred, np.linspace(0, 100, n_bins + 1), method="linear"
-            )
+            edges = np.percentile(y_pred, np.linspace(0, 100, n_bins + 1))
             # Ensure edges span [0, 1]
             edges[0] = 0
             edges[-1] = 1
@@ -252,9 +275,7 @@ class CalibrationCurve:
                 )
             edges = self._bin_edges
 
-        self._bin_edges = edges
-        self._merge_small_bins(y_pred)
-        return self._bin_edges
+        return self._merge_small_bins(edges, y_pred)
 
     def _compute_calibration_curve(self, y_true, y_pred):
         """Compute calibration curve for a single set of predictions."""
@@ -268,30 +289,26 @@ class CalibrationCurve:
         bin_counts = np.bincount(bin_indices, minlength=n_bins)
         bin_means = np.bincount(bin_indices, weights=y_pred, minlength=n_bins)
 
-        prob_true = np.zeros(n_bins)
-        prob_pred = np.zeros(n_bins)
+        # Initialize prob_true to 0.5 as least informative prior.
+        prob_true = np.ones(n_bins) / 2
+
+        # Initialize prob_pred to edge mid-points.
+        prob_pred = 0.5 * (bin_edges[:-1] + bin_edges[1:])
 
         # Handle non-empty bins
         mask = bin_counts > 0
         prob_true[mask] = bin_sums[mask] / bin_counts[mask]
         prob_pred[mask] = bin_means[mask] / bin_counts[mask]
 
-        # For empty bins, use the bin center as the predicted probability
-        empty_mask = ~mask
-        if np.any(empty_mask):
-            bin_centers = (bin_edges[1:] + bin_edges[:-1]) / 2
-            prob_pred[empty_mask] = bin_centers[empty_mask]
-            # prob_true for empty bins remains 0
+        return prob_true, prob_pred, bin_counts, bin_edges
 
-        return prob_true, prob_pred, bin_counts
-
-    def _compute_confidence_intervals(self, y_true, y_pred):
+    def _compute_confidence_intervals(
+        self, y_true, y_pred, prob_true, prob_pred, bin_counts, bin_edges
+    ):
         """Compute confidence intervals using the specified method."""
-        if self.confidence_method in ["clopper_pearson", "wilson_cc"]:
-            prob_true, prob_pred, bin_counts = self._compute_calibration_curve(
-                y_true, y_pred
-            )
 
+        # TODO: use scipy.stats.binom_test instead of our own implementation.
+        if self.confidence_method in ["clopper_pearson", "wilson_cc"]:
             interval_func = (
                 clopper_pearson_interval
                 if self.confidence_method == "clopper_pearson"
@@ -317,6 +334,9 @@ class CalibrationCurve:
         n_samples = len(y_true)
         bootstrap_curves = []
 
+        # Grid used for interpolation.
+        y_pred_grid = np.linspace(bin_edges[0], bin_edges[-1], 1000)
+
         for _ in range(self.n_bootstrap):
             # Sample with replacement
             indices = rng.randint(0, n_samples, size=n_samples)
@@ -324,30 +344,46 @@ class CalibrationCurve:
             y_pred_boot = y_pred[indices]
 
             # Compute calibration curve for this bootstrap sample
-            prob_true_boot, prob_pred_boot, _ = self._compute_calibration_curve(
+            prob_true_boot, prob_pred_boot, _, _ = self._compute_calibration_curve(
                 y_true_boot, y_pred_boot
             )
+
+            # Interpolated calibration curve on the grid.
+            prob_true_boot = interp1d(
+                prob_pred_boot,
+                prob_true_boot,
+                kind="linear",
+                bounds_error=False,
+                fill_value="extrapolate",
+            )(y_pred_grid)
+
             bootstrap_curves.append(prob_true_boot)
 
         # Compute mean curve and confidence intervals
         bootstrap_curves = np.array(bootstrap_curves)
-        prob_true, prob_pred, _ = self._compute_calibration_curve(y_true, y_pred)
-
-        # Compute confidence intervals at each prediction point
-        ci_lower = np.percentile(
-            bootstrap_curves,
-            (1 - self.confidence_level) * 100 / 2,
-            axis=0,
-            method="linear",
+        ci_lower = np.quantile(
+            bootstrap_curves, (1 - self.confidence_level) / 2, axis=0
         )
-        ci_upper = np.percentile(
-            bootstrap_curves,
-            (1 + self.confidence_level) * 100 / 2,
-            axis=0,
-            method="linear",
+        ci_upper = np.quantile(
+            bootstrap_curves, (1 + self.confidence_level) / 2, axis=0
         )
 
-        return prob_true, prob_pred, ci_lower, ci_upper
+        # Interpolate back to prob_pred locations:
+        ci_lower = interp1d(
+            y_pred_grid,
+            ci_lower,
+            kind="linear",
+            bounds_error=False,
+            fill_value="extrapolate",
+        )(prob_pred).clip(0, 1)
+        ci_upper = interp1d(
+            y_pred_grid,
+            ci_upper,
+            kind="linear",
+            bounds_error=False,
+            fill_value="extrapolate",
+        )(prob_pred).clip(0, 1)
+        return ci_lower, ci_upper
 
     def fit(self, y_true, y_pred):
         """Compute calibration curve and confidence intervals.
@@ -389,35 +425,36 @@ class CalibrationCurve:
             self._prob_true,
             self._prob_pred,
             self._bin_counts,
+            self._bin_edges,
         ) = self._compute_calibration_curve(y_true, y_pred)
 
-        # Then compute confidence intervals
-        if self.confidence_method == "bootstrap":
-            # For bootstrap, we get new prob_true and prob_pred along with CIs
-            (
-                self._prob_true,
-                self._prob_pred,
-                self._ci_lower,
-                self._ci_upper,
-            ) = self._compute_confidence_intervals(y_true, y_pred)
-        else:
-            # For other methods, we just get the CIs
-            self._ci_lower, self._ci_upper = self._compute_confidence_intervals(
-                y_true, y_pred
-            )
+        self._ci_lower, self._ci_upper = self._compute_confidence_intervals(
+            y_true,
+            y_pred,
+            self._prob_true,
+            self._prob_pred,
+            self._bin_counts,
+            self._bin_edges,
+        )
 
         return self
 
     @property
     def bin_counts(self):
-        """Get the number of observations in each bin.
+        """Get the number of samples in each bin after fitting.
 
         Returns
         -------
-        bin_counts : ndarray of shape (n_bins,)
-            Number of observations in each bin.
+        ndarray of shape (n_bins,)
+            Number of samples in each bin. The length may be less than the
+            original n_bins if bins were merged due to min_samples_per_bins.
+
+        Raises
+        ------
+        ValueError
+            If the calibration curve has not been fitted yet.
         """
-        if self._bin_counts is None:
+        if not hasattr(self, "_bin_counts") or self._bin_counts is None:
             raise ValueError("Must call fit before accessing bin_counts")
         return self._bin_counts
 
