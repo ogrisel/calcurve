@@ -1,10 +1,30 @@
 """Tests for calibration curve computation and visualization."""
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
 
 from calcurve import CalibrationCurve
+
+
+@pytest.fixture(autouse=True)
+def mpl_non_blocking():
+    """Configure matplotlib to use non-blocking Agg backend during tests."""
+    # Store the original backend
+    orig_backend = matplotlib.get_backend()
+
+    # Switch to non-blocking Agg backend
+    matplotlib.use("Agg")
+
+    # Run the test
+    yield
+
+    # Clean up any open figures
+    plt.close("all")
+
+    # Restore the original backend
+    matplotlib.use(orig_backend)
 
 
 def test_confidence_interval_clopper_pearson():
@@ -412,6 +432,15 @@ def test_invalid_confidence_method():
         cal.fit(y_true, y_pred)
 
 
+def test_invalid_confidence_method_after_init():
+    """Test that an error is raised when setting an invalid confidence method after init."""
+    from calcurve._calibration import binom_test_interval
+
+    # Try to call binom_test_interval with an invalid method
+    with pytest.raises(ValueError, match="Method invalid_method not recognized"):
+        binom_test_interval(5, 10, method="invalid_method")
+
+
 def test_compute_bin_edges():
     """Test _compute_bin_edges directly."""
     y_pred = np.array([0.1] * 50 + [0.9] * 50)
@@ -491,3 +520,24 @@ def test_bin_counts():
     # For uniform binning with these specific values, all samples should be in the bins
     assert len(cal.bin_counts) == 2
     assert np.sum(cal.bin_counts) == 100
+
+
+def test_calibration_curve_plot():
+    """Test that plotting works without errors."""
+    # Generate some test data
+    y_true = np.array([0, 0, 1, 1])
+    y_pred = np.array([0.1, 0.4, 0.35, 0.8])
+
+    # Test basic plotting
+    cal = CalibrationCurve(n_bins=2)
+    cal.fit(y_true, y_pred)
+    fig, ax = plt.subplots()
+    cal.plot(ax=ax)
+    plt.close(fig)
+
+    # Test plotting with confidence intervals
+    cal = CalibrationCurve(n_bins=2, confidence_level=0.9)
+    cal.fit(y_true, y_pred)
+    fig, ax = plt.subplots()
+    cal.plot(ax=ax)
+    plt.close(fig)
