@@ -78,6 +78,45 @@ def wilson_cc_interval(successes, trials, confidence_level=0.90):
     return lower, upper
 
 
+def binom_test_interval(
+    successes, trials, confidence_level=0.90, method="clopper_pearson"
+):
+    """Compute confidence interval using scipy.stats.binomtest.
+
+    Parameters
+    ----------
+    successes : int
+        Number of successes
+    trials : int
+        Number of trials
+    confidence_level : float, default=0.90
+        Confidence level for the interval
+
+    Returns
+    -------
+    lower, upper : tuple of float
+        Lower and upper bounds of the confidence interval
+    """
+    if trials == 0:
+        return 0.0, 1.0
+
+    if method == "clopper_pearson":
+        scipy_method = "exact"
+    elif method == "wilson_cc":
+        scipy_method = "wilsoncc"
+    else:
+        raise ValueError(
+            f"Method {method} not recognized, expected one of "
+            "['clopper_pearson', 'wilson_cc']"
+        )
+
+    result = stats.binomtest(successes, trials, alternative="two-sided")
+    lower, upper = result.proportion_ci(
+        confidence_level=confidence_level, method=scipy_method
+    )
+    return lower, upper
+
+
 class CalibrationCurve:
     """Compute and plot calibration curves with confidence intervals.
 
@@ -309,12 +348,6 @@ class CalibrationCurve:
 
         # TODO: use scipy.stats.binom_test instead of our own implementation.
         if self.confidence_method in ["clopper_pearson", "wilson_cc"]:
-            interval_func = (
-                clopper_pearson_interval
-                if self.confidence_method == "clopper_pearson"
-                else wilson_cc_interval
-            )
-
             ci_lower = np.zeros_like(prob_true)
             ci_upper = np.ones_like(prob_true)
 
@@ -323,8 +356,11 @@ class CalibrationCurve:
                 zip(bin_counts * prob_true, bin_counts)
             ):
                 if trials > 0:
-                    ci_lower[i], ci_upper[i] = interval_func(
-                        int(round(successes)), int(trials), self.confidence_level
+                    ci_lower[i], ci_upper[i] = binom_test_interval(
+                        int(round(successes)),
+                        int(trials),
+                        self.confidence_level,
+                        method=self.confidence_method,
                     )
 
             return ci_lower, ci_upper
