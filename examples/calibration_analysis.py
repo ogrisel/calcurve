@@ -112,7 +112,10 @@ cal_uniform = CalibrationCurve(
 )
 cal_uniform.fit(y_balanced_test, lr_balanced_probs)
 cal_uniform.plot(ax=axes[0, 0])
-axes[0, 0].set_title("Equal Width Binning (Uniform)\nBalanced Data\n10 bins")
+axes[0, 0].set_title(
+    "Equal Width Binning (Uniform)\nBalanced Data\n"
+    f"10 bins (avg {len(y_balanced_test) // 10:.0f} samples/bin)"
+)
 
 # Equal frequency binning on balanced data
 cal_quantile = CalibrationCurve(
@@ -122,7 +125,10 @@ cal_quantile = CalibrationCurve(
 )
 cal_quantile.fit(y_balanced_test, lr_balanced_probs)
 cal_quantile.plot(ax=axes[0, 1])
-axes[0, 1].set_title("Equal Frequency Binning (Quantile)\nBalanced Data\n10 bins")
+axes[0, 1].set_title(
+    "Equal Frequency Binning (Quantile)\nBalanced Data\n"
+    f"10 bins (avg {len(y_balanced_test) // 10:.0f} samples/bin)"
+)
 
 # Compare on imbalanced data
 cal_uniform_imbal = CalibrationCurve(
@@ -133,7 +139,8 @@ cal_uniform_imbal = CalibrationCurve(
 cal_uniform_imbal.fit(y_imbal_test, lr_imbal_probs)
 cal_uniform_imbal.plot(ax=axes[1, 0])
 axes[1, 0].set_title(
-    "Equal Width Binning (Uniform)\nImbalanced Data (10% positive)\n10 bins"
+    "Equal Width Binning (Uniform)\nImbalanced Data (10% positive)\n"
+    f"10 bins (avg {len(y_imbal_test) // 10:.0f} samples/bin)"
 )
 
 # Equal frequency binning on imbalanced data
@@ -145,7 +152,8 @@ cal_quantile_imbal = CalibrationCurve(
 cal_quantile_imbal.fit(y_imbal_test, lr_imbal_probs)
 cal_quantile_imbal.plot(ax=axes[1, 1])
 axes[1, 1].set_title(
-    "Equal Frequency Binning (Quantile)\nImbalanced Data (10% positive)\n10 bins"
+    "Equal Frequency Binning (Quantile)\nImbalanced Data (10% positive)\n"
+    f"10 bins (avg {len(y_imbal_test) // 10:.0f} samples/bin)"
 )
 
 plt.tight_layout()
@@ -200,17 +208,13 @@ for ax, setting in zip(axes.flat, settings):
     cal.fit(y_imbal_test, lr_imbal_probs)
     cal.plot(ax=ax)
 
-    # Count samples in each bin for annotation
-    bin_indices = np.searchsorted(cal._bin_edges, lr_imbal_probs) - 1
-    bin_indices = np.clip(bin_indices, 0, len(cal._bin_edges) - 2)
-    bin_counts = np.bincount(bin_indices, minlength=len(cal._bin_edges) - 1)
-    print(
-        f"Strategy: {setting['strategy']}, min Samples per bin: "
-        f"{setting['min_samples']}: bin_counts: {bin_counts}"
+    # Add actual number of bins used
+    n_actual_bins = len(cal._bin_edges) - 1
+    avg_samples = len(y_imbal_test) / n_actual_bins
+    ax.set_title(
+        f"{setting['title']}\n"
+        f"({n_actual_bins} actual bins, avg {avg_samples:.0f} samples/bin)"
     )
-
-    ax.set_title(f"{setting['title']}\n(n_bins={len(bin_counts)})")
-    ax.grid(True, alpha=0.3)
 
 plt.tight_layout()
 plt.show()
@@ -284,7 +288,7 @@ y_test_subset = y_test[test_indices]
 probs_subset = test_probs[test_indices]
 
 n_bins_list = [5, 10, 20, 50]  # Extreme range of bin counts
-fig, axes = plt.subplots(2, 2, figsize=(15, 12))
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
 fig.suptitle("Impact of Bin Count on Calibration Curves")
 
 for i, n_bins in enumerate(n_bins_list):
@@ -298,7 +302,9 @@ for i, n_bins in enumerate(n_bins_list):
     )
     cal.fit(y_test_subset, probs_subset)
     cal.plot(ax=axes[row, col])
-    axes[row, col].set_title(f"{n_bins} bins")
+
+    avg_samples = len(y_test_subset) / n_bins
+    axes[row, col].set_title(f"{n_bins} bins\n" f"(avg {avg_samples:.0f} samples/bin)")
 
 plt.tight_layout()
 
