@@ -130,7 +130,7 @@ class CalibrationCurve:
         Strategy to bin the predictions
     n_bins : int, default=10
         Number of bins (ignored if binning_strategy='custom')
-    min_samples_per_bins : int, default=None
+    min_samples_per_bins : int, default=1
         Minimum number of samples required in each bin. If a bin contains fewer
         samples than this threshold, it will be merged with adjacent bins until
         the threshold is met. This helps ensure reliable calibration estimates
@@ -161,7 +161,7 @@ class CalibrationCurve:
         self,
         binning_strategy="quantile",
         n_bins=10,
-        min_samples_per_bins=None,
+        min_samples_per_bins=1,
         confidence_method="clopper_pearson",
         confidence_level=0.90,
         n_bootstrap=100,

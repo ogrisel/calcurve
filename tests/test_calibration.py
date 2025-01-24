@@ -146,7 +146,9 @@ def test_min_samples_per_bins():
     y_true = np.zeros_like(y_pred)
 
     # Without min_samples_per_bins
-    cal_curve = CalibrationCurve(binning_strategy="uniform", n_bins=10)
+    cal_curve = CalibrationCurve(
+        binning_strategy="uniform", n_bins=10, min_samples_per_bins=None
+    )
     cal_curve.fit(y_true, y_pred)
 
     # Should have all 10 bins, even if some are small
